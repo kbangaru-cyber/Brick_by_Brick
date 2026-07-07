@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BrickAgent Modal</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #1c1c1e;
+      --bg-panel:   #2a2a2c;
+      --bg-input:   #3a3a3c;
+      --border:     #444;
+      --text:       #dcdcdc;
+      --dim:        #808080;
+      --think:      #6a9fd8;
+      --plan:       #c8a040;
+      --place:      #5ac88c;
+      --physics:    #9b7fd4;
+      --layer:      #a0a0c0;
+      --accent:     #5ac88c;
+      --warn:       #e07070;
+      --approve:    #4a9f6a;
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--text);
+                 font-family: 'Menlo', 'Consolas', monospace; font-size: 13px; }
+
+    #app {
+      display: flex; flex-direction: column;
+      height: 100vh; max-width: 960px; margin: 0 auto;
+      padding: 12px; gap: 8px;
+    }
+
+    #header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 8px 12px; background: var(--bg-panel);
+      border: 1px solid var(--border); border-radius: 8px;
+      flex-wrap: wrap;
+    }
+    #header h1 { font-size: 16px; font-weight: 700; color: var(--accent); flex: 1; }
+    #header-controls { display: flex; align-items: center; gap: 8px; }
+    .dot-group  { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--dim); }
+    .dot        { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); flex-shrink: 0; }
+    .dot.ok     { background: var(--accent); }
+    .dot.err    { background: var(--warn); }
+    #turn-count { font-size: 11px; color: var(--dim); white-space: nowrap; }
+    #modal-server-hint {
+      width: 100%;
+      color: var(--dim);
+      font-size: 11px;
+      padding-top: 4px;
+    }
+
+    #log-wrap {
+      flex: 1; overflow-y: auto; position: relative;
+      background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 14px;
+    }
+    #log { white-space: pre-wrap; word-break: break-word; line-height: 1.6; }
+
+    .think      { color: var(--think); }
+    .think-hdr  { color: var(--think); font-style: italic; }
+    .plan       { color: var(--plan); }
+    .plan-hdr   { color: var(--plan); font-weight: bold; }
+    .part-hdr   { color: var(--accent); font-weight: bold; }
+    .place      { color: var(--place); font-weight: bold; }
+    .place-stable     { color: #ffffff; font-weight: bold; }
+    .place-weak       { color: #e6c200; font-weight: bold; }
+    .place-unsupported { color: #e07070; font-weight: bold; }
+    .physics    { color: var(--physics); font-style: italic; }
+    .layer-mark { color: var(--layer); }
+    .dim        { color: var(--dim); }
+    .warn       { color: var(--warn); }
+    .reject     { color: #e08040; font-style: italic; }
+    .normal     { color: var(--text); }
+    .you        { color: var(--accent); font-weight: bold; }
+    .sys        { color: var(--dim); font-style: italic; }
+
+    /* ── viewport images — 1 row × 4 columns ── */
+    .viewport-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 140px);
+      gap: 8px;
+      margin: 6px 0 6px 12px;
+    }
+    .vp-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .vp-img  {
+      width: 140px; height: 140px; object-fit: cover;
+      border-radius: 6px; border: 1px solid var(--border);
+    }
+    .vp-lbl  { font-size: 10px; color: var(--dim); }
+
+    #progress {
+      display: none; align-items: center; gap: 8px;
+      padding: 6px 10px; background: var(--bg-panel);
+      border: 1px solid var(--border); border-radius: 6px;
+      font-size: 11px; color: var(--dim);
+    }
+    #progress.visible { display: flex; }
+    #part-dots { display: flex; gap: 4px; }
+    .pdot        { width: 10px; height: 10px; border-radius: 2px; background: var(--border); }
+    .pdot.done   { background: var(--accent); }
+    .pdot.active { background: var(--plan); }
+    #progress-text { flex: 1; }
+    #brick-count   { color: var(--text); font-weight: bold; }
+
+    #approval-panel {
+      display: none; align-items: stretch; gap: 6px;
+      padding: 10px; background: #1e2e24;
+      border: 1px solid var(--approve); border-radius: 8px;
+    }
+    #clarif-input {
+      flex: 1; padding: 8px 12px;
+      background: var(--bg-input); color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      font-family: inherit; font-size: 13px; outline: none;
+    }
+    #clarif-input:focus { border-color: var(--approve); }
+    #clarif-input::placeholder { color: var(--dim); }
+
+    #input-row { display: flex; gap: 6px; align-items: stretch; }
+    #prompt-input {
+      flex: 1; padding: 9px 12px;
+      background: var(--bg-input); color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      font-family: inherit; font-size: 13px; outline: none;
+    }
+    #prompt-input:focus { border-color: var(--accent); }
+    #prompt-input::placeholder { color: var(--dim); }
+
+    button {
+      padding: 9px 16px; border: 1px solid var(--border); border-radius: 6px;
+      background: var(--bg-input); color: var(--text);
+      font-family: inherit; font-size: 13px; cursor: pointer;
+      white-space: nowrap; transition: background 0.15s;
+    }
+    button:hover:not(:disabled) { background: #4a4a4c; }
+    button:disabled { opacity: 0.4; cursor: default; }
+
+    #btn-build   { background: #2a4a3a; border-color: var(--accent); color: var(--accent); }
+    #btn-build:hover:not(:disabled) { background: #3a6a50; }
+    #btn-stop    { border-color: var(--warn); color: var(--warn); display: none; }
+    #btn-approve { background: #1e3a28; border-color: var(--approve); color: var(--approve); font-weight: bold; }
+    #btn-approve:hover:not(:disabled) { background: #2a5038; }
+    #btn-replan  { border-color: var(--dim); color: var(--dim); }
+
+    /* ── image upload ── */
+    #img-upload      { display: none; }
+    #btn-img         { border-color: var(--plan); color: var(--plan); font-size: 15px; padding: 9px 12px; }
+    #btn-img:hover:not(:disabled) { background: #3a3a20; }
+    #img-preview     {
+      display: none; gap: 6px; padding: 6px 10px;
+      align-items: center; flex-wrap: wrap;
+    }
+    #img-preview.has-images { display: flex; }
+    .img-thumb-wrap  { position: relative; display: inline-block; }
+    .img-thumb       {
+      width: 48px; height: 48px; object-fit: cover;
+      border-radius: 4px; border: 1px solid var(--border);
+    }
+    .img-thumb-rm    {
+      position: absolute; top: -4px; right: -4px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--warn); color: #fff; border: none;
+      font-size: 10px; line-height: 16px; text-align: center;
+      cursor: pointer; padding: 0;
+    }
+
+    #mode-toggle {
+      display: flex; gap: 2px;
+      background: var(--bg); border-radius: 6px;
+      padding: 2px;
+    }
+    #fast-toggle {
+      display: flex; gap: 2px;
+      background: var(--bg); border-radius: 6px;
+      padding: 2px;
+    }
+    .mode-btn {
+      padding: 4px 12px; border: none; border-radius: 4px;
+      background: transparent; color: var(--dim);
+      font-family: inherit; font-size: 11px; font-weight: 600;
+      cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .mode-btn.active { background: var(--accent); color: var(--bg); }
+    .mode-btn:hover:not(.active):not(:disabled) { color: var(--text); }
+    .mode-btn:disabled { opacity: 0.4; cursor: default; }
+
+    /* ── waiting banner — covers chat log area only ── */
+    #waiting-banner {
+      display: none;
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(28, 28, 30, 0.88);
+      flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 100; border-radius: 8px;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+    .waiting-text {
+      font-size: 36px; font-weight: 700;
+      color: var(--plan); letter-spacing: 4px;
+      animation: pulse 2s ease-in-out infinite;
+      text-align: center;
+    }
+    .waiting-sub {
+      font-size: 14px; color: var(--dim);
+      margin-top: 14px;
+      text-align: center;
+    }
+    .waiting-hint {
+      font-size: 11px; color: var(--dim);
+      margin-top: 24px;
+      opacity: 0.6;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .chat-msg {
+      display: flex;
+      justify-content: flex-end;
+      margin: 10px 0 12px 0;
+    }
+    .chat-bubble {
+      max-width: 75%;
+      padding: 10px 16px;
+      background: #2a4a3a;
+      border: 1px solid var(--accent);
+      border-radius: 14px 14px 4px 14px;
+      color: var(--accent);
+      font-weight: bold;
+      font-size: 13px;
+      line-height: 1.5;
+      word-break: break-word;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .chat-label {
+      font-size: 9px;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+      font-weight: normal;
+      text-align: right;
+    }
+
+    .inspect-hdr {
+      color: var(--think);
+      font-style: italic;
+      font-weight: bold;
+    }
+    .inspect-text {
+      color: var(--think);
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <h1>BrickAgent Modal</h1>
+    <div id="header-controls">
+      <div id="mode-toggle">
+        <button class="mode-btn" id="btn-mode-builder">Fast</button>
+        <button class="mode-btn" id="btn-mode-agentic">Work Along</button>
+        <button class="mode-btn active" id="btn-mode-inspect">Inspect</button>
+      </div>
+      <div id="fast-toggle">
+        <button class="mode-btn" id="btn-mode-fast">Fast</button>
+      </div>
+    </div>
+    <div class="dot-group">
+      <div class="dot" id="dot-rhino"></div>
+      <span id="lbl-rhino">Rhino</span>
+    </div>
+    <div class="dot-group">
+      <div class="dot" id="dot-server"></div>
+      <span id="lbl-server">Modal server</span>
+    </div>
+    <span id="turn-count"></span>
+    <div id="modal-server-hint"></div>
+  </div>
+
+  <div id="log-wrap">
+    <div id="log"></div>
+    <div id="waiting-banner">
+      <div class="waiting-text">GO AHEAD, I CAN WAIT...</div>
+      <div class="waiting-sub">Build paused — designer activity detected</div>
+      <div class="waiting-hint">Will auto-resume after 10s of inactivity</div>
+    </div>
+  </div>
+
+  <div id="progress">
+    <div id="part-dots"></div>
+    <span id="progress-text">Idle</span>
+    <span id="brick-count">0 bricks</span>
+  </div>
+
+  <div id="approval-panel">
+    <input id="clarif-input" type="text"
+           placeholder="Add clarification or note (optional) — press Enter or click Approve" />
+    <button id="btn-approve">Approve &amp; Build</button>
+    <button id="btn-replan">Replan</button>
+  </div>
+
+  <!-- image preview strip (shows thumbnails of user-uploaded images) -->
+  <div id="img-preview"></div>
+
+  <div id="input-row">
+    <input id="prompt-input" type="text"
+           placeholder="Describe what to build…" autocomplete="off" />
+    <input id="img-upload" type="file" accept="image/*" multiple />
+    <button id="btn-img" title="Attach reference image">&#128247;</button>
+    <button id="btn-build">Build</button>
+    <button id="btn-stop">Stop</button>
+    <button id="btn-clear">Clear</button>
+  </div>
+</div>
+<script src="server-config.js?v=20260415f"></script>
+<script src="fetch-shim.js?v=20260415f"></script>
+<script src="../../app.js?v=20260415f"></script>
+</body>
+</html>
