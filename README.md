@@ -20,7 +20,16 @@ dataset_loading/        utilities to inspect the training data each model was tr
 
 ## checkpoints/
 
-Only the small files (`adapter_config.json`, `tokenizer.json`, `chat_template.jinja`, `README.md`) are meant to be tracked in git — `.gitignore` excludes `*.safetensors`, so each adapter's actual weight file (~2GB) stays local-only. Drop the real `adapter_model*.safetensors` into the matching folder (or fetch it via `inference/modal_workflow/upload_adapter.py`) on any machine that clones this repo.
+Only the small files (`adapter_config.json`, `tokenizer.json`, `chat_template.jinja`, `README.md`) are tracked in git — `.gitignore` excludes `*.safetensors`, so each adapter's actual weight file (~2GB) isn't in this repo (too large to push to GitHub).
+
+**Download the weights separately from Hugging Face:** [`karthick-hug/Brick_by_Brick`](https://huggingface.co/karthick-hug/Brick_by_Brick), `checkpoint/` folder — then place the downloaded `adapter_model*.safetensors` into the matching `checkpoints/no_reasoning/` or `checkpoints/physics_reasoning/` folder here (alongside the `adapter_config.json` etc. already in the repo) before running training or inference.
+
+```bash
+huggingface-cli download karthick-hug/Brick_by_Brick --include "checkpoint/*" --local-dir ./hf_download
+# then copy the relevant files into checkpoints/no_reasoning/ and checkpoints/physics_reasoning/
+```
+
+(Adjust the `--include` path/subfolder names above to whatever the actual layout is inside that Hugging Face repo.)
 
 Don't confuse `no_reasoning` (Stage 1, the curriculum's starting point, before reasoning existed at all) with the separate Stage 6 **noreason** ablation control that this repo does not include — same word, different checkpoint from a different experiment.
 
@@ -54,6 +63,7 @@ Both scripts save to `checkpoints/<name>` by default, resolved relative to the s
 
 ## What's not included
 
+- The adapter weight files (`adapter_model*.safetensors`, ~2GB each) — too large for GitHub. Download them from [`karthick-hug/Brick_by_Brick`](https://huggingface.co/karthick-hug/Brick_by_Brick) on Hugging Face (see [checkpoints/](#checkpoints) above).
 - The generated training datasets themselves (`stage1_structure_generator.jsonl`, `stage6_full.jsonl`, etc.) — multi-GB JSONL files, regenerate via your own data pipeline.
 - Every other stage in the curriculum (2 through 5, and the Stage 6 noreason ablation) and the dataset-creation scripts that produced them — out of scope for this repo, which is intentionally narrowed to just `no_reasoning` and `physics_reasoning`.
 - The evaluation/scoring pipeline and the notebook/batch inference paths (Colab notebook, walkthrough notebook, `eval_generate_stage6.py`) — say if you want these added back; they were left out to keep this repo focused on training + the live server + data inspection.
